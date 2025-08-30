@@ -1,0 +1,42 @@
+<max processos> <limite paginas do relogio> <limite de uso da cpu>
+
+<index processo> <total de operacoes>
+<qtd paginas processo>
+<índice fisico> <prot> <Mensagem em ascii> 
+.
+.
+.
+
+<sequencia de operações>
+
+<index processo2> <total de operacoes>
+<qtd paginas processo2>
+<índice fisico> <prot> <Mensagem em ascii> 
+.
+.
+.
+
+<sequencia de operações>
+
+Observações:
+
+Cada operação consome uma unidade do tempo de uso, ou seja,
+o total de operações que o processo realiza é limitada pelo 
+limite da cpu 
+
+Indice virtual da página deve ser mascarado para simular as 
+diferenças entre os indices fisicos e virtuais
+
+Endereços físicos devem mascarados seguindo a formula:
+EV = EF + 100 => EF = EV - 100
+
+Bit de proteção deve ser interpretado como:
+0 = Somente leitura(RX)
+1 = Ambos, leitura e escrita(RW)
+
+Mensagem será um valor em ascii.
+
+Sequencia de operações utiliza o indice virtual ao inves do fisico, 
+quando uma pagina for modificada a operacao define "M" antes do indice virtual,
+do contrario sera escrito "R" para referencia,
+a sequencia de operações será como no exemplo
