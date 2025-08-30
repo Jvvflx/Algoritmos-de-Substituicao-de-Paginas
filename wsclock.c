@@ -7,7 +7,6 @@
 
 #define TAMANHO_MEMORIA_CACHE 1024
 #define TAMANHO_MEMORIA_DISCO 4096
-#define LIMITE_PAGINAS 20
 #define JANELA_WORKING_SET 100  // Tamanho da janela do working set
 
 typedef struct pagina {
@@ -27,8 +26,28 @@ typedef struct relogio {
     int tempo_virtual;
 } Relogio;
 
+typedef struct operacao{
+    int indice;
+    int prot;
+    char mensagem[3];
+}Operacao;
+
+typedef struct processo{
+    int indice_processo;
+    int qtd_paginas;
+    int total_operacoes;
+    Operacao* sequencia_operacoes;
+    Operacao* ultima_operacao;
+}Processo;
+
 // Variáveis globais
 Relogio listaPaginas;
+Processo* listaProcessos;
+Operacao* disco;
+Operacao* cache;
+int max_processos;
+int limite_paginas;
+int limite_uso_cpu;
 int tempo_virtual_atual = 0;
 int sistema_ativo = 1;
 
@@ -277,28 +296,85 @@ void inicializar_wsclock() {
     
     printf("Sistema WSClock inicializado\n");
     printf("Janela working set: %d\n", JANELA_WORKING_SET);
-    printf("Limite de páginas: %d\n", LIMITE_PAGINAS);
+    printf("Limite de páginas: %d\n", limite_paginas);
     // Sistema de lietura de datasets sintéticos
 
 }
 
+
+void leituraArquivo(){
+
+    FILE *entrada = fopen("Exemplo.txt", "r");
+    FILE *saida = fopen("Saida.txt", "w");
+
+    // Inicializa o disco e memória
+    disco = (Operacao*) malloc(TAMANHO_MEMORIA_DISCO * sizeof(Operacao));
+    cache = (Operacao*) malloc(TAMANHO_MEMORIA_CACHE * sizeof(Operacao));
+
+    fscanf(entrada, "%d %d %d\n\n", &max_processos, &limite_paginas, &limite_uso_cpu);
+    fprintf(saida, "%d %d %d\n\n", max_processos, limite_paginas, limite_uso_cpu);
+    
+    listaProcessos = (Processo*) malloc(max_processos * sizeof(Processo));
+
+    for(int i = 0; i < max_processos; i++){
+
+        fscanf(entrada, "%d %d\n%d\n", &listaProcessos[i].indice_processo, &listaProcessos[i].total_operacoes, &listaProcessos[i].qtd_paginas);
+        fprintf(saida, "%d %d\n%d\n", listaProcessos[i].indice_processo, listaProcessos[i].total_operacoes, listaProcessos[i].qtd_paginas);
+
+        for(int j = 0; j < listaProcessos[i].qtd_paginas; j++){
+
+            fscanf(entrada, "%d %d %s\n", &cache[i+j].indice, &cache[i+j].prot, cache[i+j].mensagem);
+            fprintf(saida, "%d %d %s\n", cache[i+j].indice, cache[i+j].prot, cache[i+j].mensagem);
+
+        }
+
+        listaProcessos[i].sequencia_operacoes = (Operacao*) malloc(listaProcessos[i].total_operacoes * sizeof(Operacao));
+
+        for(int j = 0; j < listaProcessos[i].total_operacoes; j++){
+            char* tipo_operacao = (char*) malloc(2 * sizeof(char));
+            fscanf(entrada, "\n%s %d", tipo_operacao, &listaProcessos[i].sequencia_operacoes[j].indice);
+            fprintf(saida, "\n%s %d", tipo_operacao, listaProcessos[i].sequencia_operacoes[j].indice);
+
+            if(tipo_operacao[0] == 'M'){
+                fscanf(entrada, " %s\n", listaProcessos[i].sequencia_operacoes[j].mensagem);
+                fprintf(saida, " %s", listaProcessos[i].sequencia_operacoes[j].mensagem);
+            }
+            
+            if(j+1 == listaProcessos[i].total_operacoes){
+                fprintf(saida, "\n");
+            }
+            
+        }
+
+        fscanf(entrada, "\n");
+        fprintf(saida, "\n");
+
+
+    }
+
+    fclose(entrada);
+    fclose(saida);
+}
+
 int main() {
-    printf("=== Implementação WSClock ===\n");
+    // printf("=== Implementação WSClock ===\n");
     
-    // Exemplo de uso
-    inicializar_wsclock();
+    // // Exemplo de uso
+    // inicializar_wsclock();
     
-    // Cria thread de timer (opcional, para demonstração)
-    pthread_t timer_tid;
-    pthread_create(&timer_tid, NULL, timer_thread, NULL);
+    // // Cria thread de timer (opcional, para demonstração)
+    // pthread_t timer_tid;
+    // pthread_create(&timer_tid, NULL, timer_thread, NULL);
     
-    // Executa simulação
-    simular_referencias();
+    // // Executa simulação
+    // simular_referencias();
     
-    // Finaliza sistema
-    sistema_ativo = 0;
-    pthread_join(timer_tid, NULL);
+    // // Finaliza sistema
+    // sistema_ativo = 0;
+    // pthread_join(timer_tid, NULL);
     
-    printf("\nSistema finalizado\n");
+    // printf("\nSistema finalizado\n");
+
+    leituraArquivo();
     return 0;
 }

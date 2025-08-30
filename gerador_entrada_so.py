@@ -28,6 +28,8 @@ def gen_process_block(proc_index: int,
     lines.append(str(qtd_paginas))
     for ef, prot, msg in zip(physical_indices, protections, initial_msgs):
         lines.append(f"{ef} {prot} {msg}")
+
+    # linha em branco antes da sequência
     lines.append("")
 
     rw_pages = [ef for ef, prot in zip(physical_indices, protections) if prot == 1]
@@ -58,38 +60,37 @@ def gen_process_block(proc_index: int,
             seq.append(f"R {ev}")
 
     lines.extend(seq)
-    lines.append("")
     return "\n".join(lines), total_ops
 
 def gerar_entrada(max_processos: int,
                   limite_paginas_relogio: int,
                   limite_cpu: int,
                   seed: int = 42,
-                  incluir_linha_extra: int | None = None,
                   min_pages: int = 3,
                   max_pages: int = 10,
                   ev_offset: int = 100) -> str:
     rng = random.Random(seed)
-    linhas = [f"{max_processos} {limite_paginas_relogio} {limite_cpu}"]
-    if incluir_linha_extra is not None:
-        linhas.append(str(incluir_linha_extra))
-        linhas.append("")
+    linhas = [f"{max_processos} {limite_paginas_relogio} {limite_cpu}", ""]
     for p in range(max_processos):
-        bloco, _ = gen_process_block(p, rng, limite_cpu, min_pages=min_pages, max_pages=max_pages, ev_offset=ev_offset)
+        bloco, _ = gen_process_block(p, rng, limite_cpu,
+                                     min_pages=min_pages,
+                                     max_pages=max_pages,
+                                     ev_offset=ev_offset)
         linhas.append(bloco)
-    return "\n".join(linhas).strip() + "\n"
+        if p != max_processos - 1:  # separa processos com uma linha em branco
+            linhas.append("")
+    return "\n".join(linhas) + "\n"
 
 def main():
     ap = argparse.ArgumentParser(description="Gerador de arquivo de entrada para simulação de memória/CPU.")
-    ap.add_argument("--processos", type=int, default=2, help="Máximo de processos (linhas de blocos gerados).")
-    ap.add_argument("--relogio", type=int, default=5, help="Limite de páginas do relógio.")
-    ap.add_argument("--cpu", type=int, default=10, help="Limite de uso da CPU por processo (número máximo de operações).")
-    ap.add_argument("--seed", type=int, default=42, help="Semente do gerador aleatório.")
-    ap.add_argument("--extra", type=int, default=None, help="Linha extra opcional logo após o cabeçalho (p.ex., tamanho de memória).")
-    ap.add_argument("--min-pag", type=int, default=3, help="Mínimo de páginas por processo.")
-    ap.add_argument("--max-pag", type=int, default=10, help="Máximo de páginas por processo.")
-    ap.add_argument("--offset", type=int, default=100, help="Offset de mascaramento: EV = EF + offset.")
-    ap.add_argument("--saida", type=str, default="entrada.txt", help="Arquivo de saída.")
+    ap.add_argument("--processos", type=int, default=2)
+    ap.add_argument("--relogio", type=int, default=5)
+    ap.add_argument("--cpu", type=int, default=10)
+    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--min-pag", type=int, default=3)
+    ap.add_argument("--max-pag", type=int, default=10)
+    ap.add_argument("--offset", type=int, default=100)
+    ap.add_argument("--saida", type=str, default="entrada.txt")
     args = ap.parse_args()
 
     texto = gerar_entrada(
@@ -97,7 +98,6 @@ def main():
         limite_paginas_relogio=args.relogio,
         limite_cpu=args.cpu,
         seed=args.seed,
-        incluir_linha_extra=args.extra,
         min_pages=args.min_pag,
         max_pages=args.max_pag,
         ev_offset=args.offset,
@@ -110,15 +110,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# Bash
-# python gerador_entrada_so.py \
-#   --processos 2 \
-#   --relogio 5 \
-#   --cpu 10 \
-#   --seed 7 \
-#   --extra 20 \
-#   --min-pag 5 \
-#   --max-pag 8 \
-#   --offset 100 \
-#   --saida entrada.txt
