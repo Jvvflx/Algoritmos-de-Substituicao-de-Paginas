@@ -55,6 +55,9 @@ int processo_atual = 0;
 int uso_cpu = 0;
 int sistema_ativo = 1;
 
+// Variáveis de comparação
+int qtd_page_fault = 0;
+
 // Protótipos das funções
 void substituirPagina(Pagina *nova_pagina);
 void trocaPagina(Pagina *antiga, Pagina *nova);
@@ -239,12 +242,15 @@ void referenciar_pagina(Operacao dados) {
             printf("Modificando página %d\n", dados.indice);
             atual->R = 1;
             atual->M = 1;
+            // Busca para alteração da mensagem
             atual->timestamp_ultima_ref = tempo_virtual_atual;
             agendaEscrita(atual);
             return;
         }
         atual = atual->prox;
     } while (atual != inicio);
+
+    qtd_page_fault++;
     
     // Page fault - página não encontrada
     printf("Page fault! Página %d não está na memória\n", dados.indice);
