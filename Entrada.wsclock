@@ -28,7 +28,9 @@ Indice virtual da página deve ser mascarado para simular as
 diferenças entre os indices fisicos e virtuais
 
 Endereços físicos devem mascarados seguindo a formula:
-EV = EF + 100 => EF = EV - 100
+cache[i].indice = disco[i].indice == -1 ? -1 : i;
+dado que o valor -1 para o indice representa uma limitação da memória do processo i
+o indice do processo nessa limitação fica armazenado dentro do prot
 
 Bit de proteção deve ser interpretado como:
 0 = Somente leitura(RX)
