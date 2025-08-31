@@ -1,0 +1,9 @@
+>qtd processos> <paginas totais> <operacoes totais> <qtd_page_fault_total>
+<index processo> <qtd_paginas> <qtd_operacoes>
+<qtd_page_fault>
+.
+.
+.
+<index processo_n> <qtd_paginas_n> < qtd_operacoes_n>
+<qtd_page_fault_n>
+
