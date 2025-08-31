@@ -14,9 +14,19 @@ def gen_process_block(proc_index: int,
                       cpu_limit: int,
                       min_pages: int = 3,
                       max_pages: int = 10,
-                      ev_offset: int = 100) -> Tuple[str, int]:
+                      ev_offset: int = 100,
+                      start_disk_index: int = 0) -> Tuple[str, int, int]:
+    """
+    Gera o bloco textual de um processo.
+    - start_disk_index: posição inicial no vetor 'disco' onde as páginas deste processo serão escritas.
+    Retorna: (texto_do_bloco, total_ops, qtd_paginas)
+    """
     qtd_paginas = rng.randint(min_pages, max_pages)
-    physical_indices = list(range(0, qtd_paginas))
+    # índices globais no disco
+    physical_indices = list(range(start_disk_index, start_disk_index + qtd_paginas))
+    # índices locais (0..qtd_paginas-1)
+    local_indices = list(range(qtd_paginas))
+
     protections = [rng.choice([0, 1, 0]) for _ in physical_indices]
     if 1 not in protections and qtd_paginas > 0:
         protections[rng.randrange(qtd_paginas)] = 1
@@ -24,14 +34,17 @@ def gen_process_block(proc_index: int,
     total_ops = rng.randint(max(1, min(5, cpu_limit)), cpu_limit)
 
     lines: List[str] = []
+    # header do processo
     lines.append(f"{proc_index} {total_ops}")
     lines.append(str(qtd_paginas))
-    for ef, prot, msg in zip(physical_indices, protections, initial_msgs):
-        lines.append(f"{ef} {prot} {msg}")
+    # lista de páginas - mostramos índice local, mas guardamos o global
+    for local_idx, (ef_global, prot, msg) in enumerate(zip(physical_indices, protections, initial_msgs)):
+        lines.append(f"{local_idx} {prot} {msg}")
 
-    # linha em branco antes da sequência
+    # linha em branco antes da sequência de operações
     lines.append("")
 
+    # listas de páginas por global
     rw_pages = [ef for ef, prot in zip(physical_indices, protections) if prot == 1]
     ro_pages = [ef for ef, prot in zip(physical_indices, protections) if prot == 0]
 
@@ -46,21 +59,22 @@ def gen_process_block(proc_index: int,
             else:
                 do_write = rng.random() < 0.30
         if do_write:
-            ef = rng.choice(rw_pages)
-            ev = ef + ev_offset
+            ef_global = rng.choice(rw_pages)      # índice global
+            ev = ef_global + ev_offset           # índice virtual calculado do global
             msg = pick_ascii_pair(rng)
             seq.append(f"M {ev} {msg}")
             wrote_once = True
         else:
             if rng.random() < 0.5 and ro_pages:
-                ef = rng.choice(ro_pages)
+                ef_global = rng.choice(ro_pages)
             else:
-                ef = rng.choice(physical_indices)
-            ev = ef + ev_offset
+                ef_global = rng.choice(physical_indices)
+            ev = ef_global + ev_offset
             seq.append(f"R {ev}")
 
     lines.extend(seq)
-    return "\n".join(lines), total_ops
+    return "\n".join(lines), total_ops, qtd_paginas
+
 
 def gerar_entrada(max_processos: int,
                   limite_paginas_relogio: int,
@@ -71,14 +85,23 @@ def gerar_entrada(max_processos: int,
                   ev_offset: int = 100) -> str:
     rng = random.Random(seed)
     linhas = [f"{max_processos} {limite_paginas_relogio} {limite_cpu}", ""]
+    cont = 0  # conta páginas já escritas (igual ao seu 'cont' em C)
+
     for p in range(max_processos):
-        bloco, _ = gen_process_block(p, rng, limite_cpu,
-                                     min_pages=min_pages,
-                                     max_pages=max_pages,
-                                     ev_offset=ev_offset)
+        # posição inicial no disco para o processo p: p + cont  (match com seu C)
+        start_disk_index = p + cont
+        bloco, _, qtd_paginas = gen_process_block(
+            p, rng, limite_cpu,
+            min_pages=min_pages,
+            max_pages=max_pages,
+            ev_offset=ev_offset,
+            start_disk_index=start_disk_index
+        )
         linhas.append(bloco)
-        if p != max_processos - 1:  # separa processos com uma linha em branco
-            linhas.append("")
+        if p != max_processos - 1:
+            linhas.append("")  # separador entre processos
+        cont += qtd_paginas  # incrementa cont exatamente como no seu C
+
     return "\n".join(linhas) + "\n"
 
 def main():

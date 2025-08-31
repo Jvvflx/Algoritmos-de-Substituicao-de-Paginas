@@ -27,6 +27,7 @@ typedef struct relogio {
 } Relogio;
 
 typedef struct operacao{
+    char tipo;
     int indice;
     int prot;
     char mensagem[3];
@@ -50,6 +51,8 @@ int max_processos;
 int limite_paginas;
 int limite_uso_cpu;
 int tempo_virtual_atual = 0;
+int processo_atual = 0;
+int uso_cpu = 0;
 int sistema_ativo = 1;
 
 // Protótipos das funções
@@ -57,10 +60,12 @@ void substituirPagina(Pagina *nova_pagina);
 void trocaPagina(Pagina *antiga, Pagina *nova);
 void agendaEscrita(Pagina *page);
 int esta_no_working_set(Pagina *page);
-void adicionar_pagina(int indice);
+void adicionar_pagina(Operacao dados);
 void imprimir_estado_sistema();
-void simular_referencias();
-Pagina* criar_pagina(int indice);
+void simular_referencias(int processo);
+Pagina* criar_pagina(Operacao dados);
+void leituraArquivo();
+void mascararIndicesVirtuais();
 
 // Thread para simular o tempo virtual de forma controlada
 void* timer_thread(void* args) {
@@ -75,16 +80,16 @@ void* timer_thread(void* args) {
 }
 
 // Cria uma nova página
-Pagina* criar_pagina(int indice) {
+Pagina* criar_pagina(Operacao dados) {
     Pagina* nova = (Pagina*)malloc(sizeof(Pagina));
     if (!nova) return NULL;
     
-    nova->indice_pagina = indice;
+    nova->indice_pagina = dados.indice;
     nova->timestamp_ultima_ref = tempo_virtual_atual;
     nova->valida = 1;
     nova->R = 1; // Página recém carregada foi referenciada
     nova->M = 0; // Página limpa inicialmente
-    nova->prot = 0;
+    nova->prot = dados.prot;
     nova->prox = nova; // Inicialmente aponta para si mesmo
     nova->ante = nova;
     
@@ -92,9 +97,9 @@ Pagina* criar_pagina(int indice) {
 }
 
 // Adiciona uma página ao sistema (estrutura circular)
-void adicionar_pagina(int indice) {
+void adicionar_pagina(Operacao dados) {
     
-    Pagina* nova = criar_pagina(indice);
+    Pagina* nova = criar_pagina(dados);
     if (!nova) {
         printf("Erro: não foi possível alocar memória para página\n");
         return;
@@ -113,8 +118,8 @@ void adicionar_pagina(int indice) {
     }
     
     listaPaginas.qtd_paginas++;
-    printf("Página %d adicionada ao sistema. Total: %d páginas\n", 
-           indice, listaPaginas.qtd_paginas);
+    printf("Página %d adicionada ao sistema. Total: %d páginas no relógio\n", 
+           dados.indice, listaPaginas.qtd_paginas);
     
 }
 
@@ -211,7 +216,7 @@ void agendaEscrita(Pagina *page) {
 }
 
 // Função para simular referência a uma página
-void referenciar_pagina(int indice_pagina) {
+void referenciar_pagina(Operacao dados) {
     
     // Procura a página na lista
     if (listaPaginas.qtd_paginas == 0) {
@@ -223,18 +228,27 @@ void referenciar_pagina(int indice_pagina) {
     Pagina* inicio = atual;
     
     do {
-        if (atual->indice_pagina == indice_pagina) {
-            printf("Referenciando página %d\n", indice_pagina);
+        if (atual->indice_pagina == dados.indice && dados.tipo == 'R') {
+            printf("Referenciando página %d\n", dados.indice);
             atual->R = 1;
             atual->timestamp_ultima_ref = tempo_virtual_atual;
+            return;
+        }
+
+        if (atual->indice_pagina == dados.indice && dados.tipo == 'M') {
+            printf("Modificando página %d\n", dados.indice);
+            atual->R = 1;
+            atual->M = 1;
+            atual->timestamp_ultima_ref = tempo_virtual_atual;
+            agendaEscrita(atual);
             return;
         }
         atual = atual->prox;
     } while (atual != inicio);
     
     // Page fault - página não encontrada
-    printf("Page fault! Página %d não está na memória\n", indice_pagina);
-    Pagina* nova = criar_pagina(indice_pagina); // Atualizar função para procurar paǵina do disco e criar página na tabela de paginação
+    printf("Page fault! Página %d não está na memória\n", dados.indice);
+    Pagina* nova = criar_pagina(dados); // Atualizar função para procurar paǵina do disco e criar página na tabela de paginação
     if (nova) {
         substituirPagina(nova);
     }
@@ -259,7 +273,7 @@ void imprimir_estado_sistema() {
                    esta_no_working_set(atual) ? "SIM" : "NAO",
                    (atual == listaPaginas.ponteiro_relogio) ? " [PONTEIRO]" : "");
             atual = atual->prox;
-        } while (atual != inicio);
+        } while (atual != inicio && listaProcessos[processo_atual].total_operacoes);
     }
     
     printf("========================\n\n");
@@ -267,26 +281,28 @@ void imprimir_estado_sistema() {
 }
 
 // Simulação de referências para teste
-void simular_referencias() {
+void simular_referencias(int processo) {
     printf("Iniciando simulação de referências...\n");
     
     // Adiciona algumas páginas iniciais
-    for (int i = 1; i <= 20; i++) {
-        adicionar_pagina(i);
+    for (int i = 0; i < limite_paginas && cache[i].indice != -1; i++) {
+        adicionar_pagina(cache[i]);
     }
     
     imprimir_estado_sistema();
     
     // Simula algumas referências
-    int sequencia[] = {1, 2, 3, 1, 4, 5, 6, 7, 8, 2, 1,1,1,2,3,1,6,12,14,14,15,17,19,1,1,2,3,2,3,12,14,14,14};
-    int tamanho_seq = sizeof(sequencia) / sizeof(sequencia[0]);
+    Operacao atual = listaProcessos[processo].sequencia_operacoes[0];
+    int uso_atual = (listaProcessos[processo].total_operacoes % limite_uso_cpu);
     
-    for (int i = 0; i < tamanho_seq; i++) {
-        printf("\n--- Referência %d: página %d ---\n", i+1, sequencia[i]);
-        referenciar_pagina(sequencia[i]);
-        sleep(2);
+    for (int i = 0; i < uso_atual; i++) {
+        printf("\n--- Realiza operação %d: página %d ---\n", i+1, atual.indice);
+        referenciar_pagina(atual);
         imprimir_estado_sistema();
+        uso_cpu++;
+        atual = atual = listaProcessos[processo].sequencia_operacoes[i+1];
     }
+    listaProcessos[processo].ultima_operacao = &atual;
 }
 
 // Inicialização do sistema
@@ -298,8 +314,10 @@ void inicializar_wsclock() {
     printf("Sistema WSClock inicializado\n");
     printf("Janela working set: %d\n", JANELA_WORKING_SET);
     printf("Limite de páginas: %d\n", limite_paginas);
-    // Sistema de lietura de datasets sintéticos
 
+    // Sistema de leitura de datasets sintéticos
+    leituraArquivo();
+    mascararIndicesVirtuais();
 }
 
 
@@ -348,6 +366,8 @@ void leituraArquivo(){
                 fscanf(entrada, " %s\n", listaProcessos[i].sequencia_operacoes[k].mensagem);
                 fprintf(saida, " %s", listaProcessos[i].sequencia_operacoes[k].mensagem);
             }
+
+            listaProcessos[i].sequencia_operacoes[k].tipo = tipo_operacao[0];
             
             if(k+1 == listaProcessos[i].total_operacoes){
                 fprintf(saida, "\n");
@@ -373,7 +393,7 @@ void mascararIndicesVirtuais(){
         cache[i].mensagem[0] = disco[i].mensagem[0];
         cache[i].mensagem[1] = disco[i].mensagem[1];
 
-        cache[i].indice = disco[i].indice == -1 ? -1 : i;
+        cache[i].indice = disco[i].indice == -1 ? -1 : 100 + i;
 
 
         printf("cache: index->%d prot->%d mensagem->%s\n", cache[i].indice, cache[i].prot, cache[i].mensagem);
@@ -383,25 +403,23 @@ void mascararIndicesVirtuais(){
 }
 
 int main() {
-    // printf("=== Implementação WSClock ===\n");
+    printf("=== Implementação WSClock ===\n");
     
-    // // Exemplo de uso
-    // inicializar_wsclock();
+    // Exemplo de uso
+    inicializar_wsclock();
     
-    // // Cria thread de timer (opcional, para demonstração)
-    // pthread_t timer_tid;
-    // pthread_create(&timer_tid, NULL, timer_thread, NULL);
+    // Cria thread de timer (opcional, para demonstração)
+    pthread_t timer_tid;
+    pthread_create(&timer_tid, NULL, timer_thread, NULL);
     
-    // // Executa simulação
-    // simular_referencias();
+    // Executa simulação
+    simular_referencias(0);
     
-    // // Finaliza sistema
-    // sistema_ativo = 0;
-    // pthread_join(timer_tid, NULL);
+    // Finaliza sistema
+    sistema_ativo = 0;
+    pthread_join(timer_tid, NULL);
     
-    // printf("\nSistema finalizado\n");
+    printf("\nSistema finalizado\n");
 
-    leituraArquivo();
-    mascararIndicesVirtuais();
     return 0;
 }
