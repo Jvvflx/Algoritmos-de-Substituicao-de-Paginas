@@ -7,7 +7,7 @@
 
 #define TAMANHO_MEMORIA_CACHE 1024
 #define TAMANHO_MEMORIA_DISCO 4096
-#define JANELA_WORKING_SET 10  // Tamanho da janela do working set
+#define JANELA_WORKING_SET 3  // Tamanho da janela do working set
 
 typedef struct pagina {
     int timestamp_ultima_ref;   // Timestamp da última referência (essencial para WSClock)
@@ -25,6 +25,12 @@ typedef struct relogio {
     int qtd_paginas;
     int tempo_virtual;
 } Relogio;
+
+typedef struct fila {
+    Pagina* lista;  // Ponteiro atual do relógio
+    int qtd_paginas;
+    int tempo_virtual;
+} Fila;
 
 typedef struct operacao{
     char tipo;
@@ -44,6 +50,7 @@ typedef struct processo{
 // Variáveis globais
 Relogio listaPaginas;
 Processo* listaProcessos;
+Fila filaAgendamento;
 Operacao* disco;
 Operacao* cache;
 int total_paginas;
@@ -59,27 +66,23 @@ int sistema_ativo = 1;
 int qtd_page_fault = 0;
 
 // Protótipos das funções
+void* escritaDisco();
 void substituirPagina(Pagina *nova_pagina);
 void trocaPagina(Pagina *antiga, Pagina *nova);
 void agendaEscrita(Pagina *page);
 int esta_no_working_set(Pagina *page);
-void adicionar_pagina(Operacao dados);
+void adicionar_pagina_Relogio(Operacao dados);
+void adicionar_pagina_Fila(Pagina *page);
 void imprimir_estado_sistema();
 void simular_referencias(int processo);
 Pagina* criar_pagina(Operacao dados);
 void leituraArquivo();
 void mascararIndicesVirtuais();
 
-// Thread para simular o tempo virtual de forma controlada
-void* timer_thread(void* args) {
-    while(sistema_ativo) {
-        tempo_virtual_atual++;
-        sleep(1);
-        
-        // Tempo virtual só incrementa com atividade do sistema
-        // Esta thread apenas simula a passagem de tempo
-    }
-    return NULL;
+void* escritaDisco(void *args){
+
+    // Função da thread que ficará responsável por escrever as mensagens no disco
+
 }
 
 // Cria uma nova página
@@ -100,7 +103,7 @@ Pagina* criar_pagina(Operacao dados) {
 }
 
 // Adiciona uma página ao sistema (estrutura circular)
-void adicionar_pagina(Operacao dados) {
+void adicionar_pagina_Relogio(Operacao dados) {
     
     Pagina* nova = criar_pagina(dados);
     if (!nova) {
@@ -123,6 +126,27 @@ void adicionar_pagina(Operacao dados) {
     listaPaginas.qtd_paginas++;
     printf("Página %d adicionada ao sistema. Total: %d páginas no relógio\n", 
            dados.indice, listaPaginas.qtd_paginas);
+    
+}
+
+// Adiciona uma página ao sistema (estrutura circular)
+void adicionar_pagina_Fila(Pagina *page) {
+    
+    if (filaAgendamento.qtd_paginas == 0) {
+        filaAgendamento.lista[0] = *page;
+    } 
+    else {
+        Pagina* ultimo = filaAgendamento.lista[0].ante;
+        
+        page->prox = &filaAgendamento.lista[0];
+        page->ante = ultimo;
+        ultimo->prox = page;
+        filaAgendamento.lista[0].ante = page;
+    }
+    
+    filaAgendamento.qtd_paginas++;
+    printf("Página %d adicionada ao sistema. Total: %d páginas no relógio\n", 
+           page->indice_pagina, filaAgendamento.qtd_paginas);
     
 }
 
@@ -214,7 +238,19 @@ void trocaPagina(Pagina *antiga, Pagina *nova) {
 
 // Função para agendar uma página suja para escrita no disco INCOMPLETA
 void agendaEscrita(Pagina *page) {
+
     printf("Agendando escrita da página %d para disco\n", page->indice_pagina);
+
+    // Adiciona página na fila de escrita
+    for(int i = 0; i < filaAgendamento.qtd_paginas; i++){
+        if(page->indice_pagina == filaAgendamento.lista[i].indice_pagina){
+            printf("Página %d já está na fila para escrita em disco\n", page->indice_pagina);
+            return;
+        }
+    }
+    adicionar_pagina_Fila(page);
+
+    printf("Página %d adicionada na fila para escrita no disco\n", page->indice_pagina);
 
 }
 
@@ -242,7 +278,6 @@ void referenciar_pagina(Operacao dados) {
             printf("Modificando página %d\n", dados.indice);
             atual->R = 1;
             atual->M = 1;
-            // Busca para alteração da mensagem
             atual->timestamp_ultima_ref = tempo_virtual_atual;
             agendaEscrita(atual);
             return;
@@ -292,7 +327,7 @@ void simular_referencias(int processo) {
     
     // Adiciona algumas páginas iniciais
     for (int i = 0; i < limite_paginas && cache[i].indice != -1; i++) {
-        adicionar_pagina(cache[i]);
+        adicionar_pagina_Relogio(cache[i]);
     }
     
     imprimir_estado_sistema();
@@ -303,6 +338,7 @@ void simular_referencias(int processo) {
     
     for (int i = 0; i < uso_atual; i++) {
         printf("\n--- Realiza operação %d: página %d ---\n", i+1, atual.indice);
+        tempo_virtual_atual++;
         referenciar_pagina(atual);
         imprimir_estado_sistema();
         uso_cpu++;
@@ -332,9 +368,12 @@ void leituraArquivo(){
     FILE *entrada = fopen("Exemplo.txt", "r");
     FILE *saida = fopen("Saida.txt", "w");
 
-    // Inicializa o disco e memória
+    // Inicializa o disco, memória e fila de agendamento
     disco = (Operacao*) malloc(TAMANHO_MEMORIA_DISCO * sizeof(Operacao));
     cache = (Operacao*) malloc(TAMANHO_MEMORIA_CACHE * sizeof(Operacao));
+    filaAgendamento.lista = (Pagina*) malloc((TAMANHO_MEMORIA_CACHE/8) * sizeof(Pagina));
+    filaAgendamento.qtd_paginas = 0;
+    filaAgendamento.tempo_virtual = 0;
 
     fscanf(entrada, "%d %d %d\n\n", &max_processos, &limite_paginas, &limite_uso_cpu);
     fprintf(saida, "%d %d %d\n\n", max_processos, limite_paginas, limite_uso_cpu);
@@ -415,15 +454,15 @@ int main() {
     inicializar_wsclock();
     
     // Cria thread de timer (opcional, para demonstração)
-    pthread_t timer_tid;
-    pthread_create(&timer_tid, NULL, timer_thread, NULL);
+    pthread_t escrita_em_disco;
+    pthread_create(&escrita_em_disco, NULL, escritaDisco, NULL);
     
     // Executa simulação
     simular_referencias(0);
     
     // Finaliza sistema
     sistema_ativo = 0;
-    pthread_join(timer_tid, NULL);
+    pthread_join(escrita_em_disco, NULL);
     
     printf("\nSistema finalizado\n");
 
