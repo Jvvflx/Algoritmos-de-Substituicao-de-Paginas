@@ -7,7 +7,7 @@
 
 #define TAMANHO_MEMORIA_CACHE 1024
 #define TAMANHO_MEMORIA_DISCO 4096
-#define JANELA_WORKING_SET 100  // Tamanho da janela do working set
+#define JANELA_WORKING_SET 10  // Tamanho da janela do working set
 
 typedef struct pagina {
     int timestamp_ultima_ref;   // Timestamp da última referência (essencial para WSClock)
@@ -45,6 +45,7 @@ Relogio listaPaginas;
 Processo* listaProcessos;
 Operacao* disco;
 Operacao* cache;
+int total_paginas;
 int max_processos;
 int limite_paginas;
 int limite_uso_cpu;
@@ -190,7 +191,7 @@ void trocaPagina(Pagina *antiga, Pagina *nova) {
     // Copia dados importantes
     nova->prox = antiga->prox;
     nova->ante = antiga->ante;
-    
+
     // Atualiza ponteiros das páginas vizinhas
     antiga->ante->prox = nova;
     antiga->prox->ante = nova;
@@ -316,31 +317,39 @@ void leituraArquivo(){
     
     listaProcessos = (Processo*) malloc(max_processos * sizeof(Processo));
 
+    int j, cont = 0;
+
     for(int i = 0; i < max_processos; i++){
 
         fscanf(entrada, "%d %d\n%d\n", &listaProcessos[i].indice_processo, &listaProcessos[i].total_operacoes, &listaProcessos[i].qtd_paginas);
         fprintf(saida, "%d %d\n%d\n", listaProcessos[i].indice_processo, listaProcessos[i].total_operacoes, listaProcessos[i].qtd_paginas);
 
-        for(int j = 0; j < listaProcessos[i].qtd_paginas; j++){
 
-            fscanf(entrada, "%d %d %s\n", &cache[i+j].indice, &cache[i+j].prot, cache[i+j].mensagem);
-            fprintf(saida, "%d %d %s\n", cache[i+j].indice, cache[i+j].prot, cache[i+j].mensagem);
+        total_paginas += listaProcessos[i].qtd_paginas;
 
+        for(j = 0; j < listaProcessos[i].qtd_paginas; j++, cont++){
+
+            fscanf(entrada, "%d %d %s\n", &disco[i+cont].indice, &disco[i+cont].prot, disco[i+cont].mensagem);
+            fprintf(saida, "%d %d %s\n", disco[i+cont].indice, disco[i+cont].prot, disco[i+cont].mensagem);
+            
         }
+        // Definição do limite de memória de cada processo
+        disco[i+cont].indice = -1;
+        disco[i+cont].prot = i;
 
         listaProcessos[i].sequencia_operacoes = (Operacao*) malloc(listaProcessos[i].total_operacoes * sizeof(Operacao));
 
-        for(int j = 0; j < listaProcessos[i].total_operacoes; j++){
+        for(int k = 0; k < listaProcessos[i].total_operacoes; k++){
             char* tipo_operacao = (char*) malloc(2 * sizeof(char));
-            fscanf(entrada, "\n%s %d", tipo_operacao, &listaProcessos[i].sequencia_operacoes[j].indice);
-            fprintf(saida, "\n%s %d", tipo_operacao, listaProcessos[i].sequencia_operacoes[j].indice);
+            fscanf(entrada, "\n%s %d", tipo_operacao, &listaProcessos[i].sequencia_operacoes[k].indice);
+            fprintf(saida, "\n%s %d", tipo_operacao, listaProcessos[i].sequencia_operacoes[k].indice);
 
             if(tipo_operacao[0] == 'M'){
-                fscanf(entrada, " %s\n", listaProcessos[i].sequencia_operacoes[j].mensagem);
-                fprintf(saida, " %s", listaProcessos[i].sequencia_operacoes[j].mensagem);
+                fscanf(entrada, " %s\n", listaProcessos[i].sequencia_operacoes[k].mensagem);
+                fprintf(saida, " %s", listaProcessos[i].sequencia_operacoes[k].mensagem);
             }
             
-            if(j+1 == listaProcessos[i].total_operacoes){
+            if(k+1 == listaProcessos[i].total_operacoes){
                 fprintf(saida, "\n");
             }
             
@@ -354,6 +363,23 @@ void leituraArquivo(){
 
     fclose(entrada);
     fclose(saida);
+}
+
+void mascararIndicesVirtuais(){
+
+    for(int i = 0; i < total_paginas+max_processos; i++){
+
+        cache[i].prot = disco[i].prot;
+        cache[i].mensagem[0] = disco[i].mensagem[0];
+        cache[i].mensagem[1] = disco[i].mensagem[1];
+
+        cache[i].indice = disco[i].indice == -1 ? -1 : i;
+
+
+        printf("cache: index->%d prot->%d mensagem->%s\n", cache[i].indice, cache[i].prot, cache[i].mensagem);
+        
+    }
+
 }
 
 int main() {
@@ -376,5 +402,6 @@ int main() {
     // printf("\nSistema finalizado\n");
 
     leituraArquivo();
+    mascararIndicesVirtuais();
     return 0;
 }

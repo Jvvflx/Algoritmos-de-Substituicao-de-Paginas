@@ -16,7 +16,7 @@ def gen_process_block(proc_index: int,
                       max_pages: int = 10,
                       ev_offset: int = 100) -> Tuple[str, int]:
     qtd_paginas = rng.randint(min_pages, max_pages)
-    physical_indices = list(range(1, qtd_paginas + 1))
+    physical_indices = list(range(0, qtd_paginas))
     protections = [rng.choice([0, 1, 0]) for _ in physical_indices]
     if 1 not in protections and qtd_paginas > 0:
         protections[rng.randrange(qtd_paginas)] = 1
