@@ -31,7 +31,7 @@ def gen_process_block(proc_index: int,
     if 1 not in protections and qtd_paginas > 0:
         protections[rng.randrange(qtd_paginas)] = 1
     initial_msgs = [pick_ascii_pair(rng) for _ in physical_indices]
-    total_ops = rng.randint(max(1, min(5, cpu_limit)), cpu_limit)
+    total_ops = rng.randint(max(1, min(cpu_limit, cpu_limit)), cpu_limit*50)
 
     lines: List[str] = []
     # header do processo
@@ -106,12 +106,12 @@ def gerar_entrada(max_processos: int,
 
 def main():
     ap = argparse.ArgumentParser(description="Gerador de arquivo de entrada para simulação de memória/CPU.")
-    ap.add_argument("--processos", type=int, default=2)
-    ap.add_argument("--relogio", type=int, default=5)
+    ap.add_argument("--processos", type=int, default=3)
+    ap.add_argument("--relogio", type=int, default=7)
     ap.add_argument("--cpu", type=int, default=10)
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--min-pag", type=int, default=3)
-    ap.add_argument("--max-pag", type=int, default=10)
+    ap.add_argument("--min-pag", type=int, default=20)
+    ap.add_argument("--max-pag", type=int, default=30)
     ap.add_argument("--offset", type=int, default=100)
     ap.add_argument("--saida", type=str, default="entrada.txt")
     args = ap.parse_args()
