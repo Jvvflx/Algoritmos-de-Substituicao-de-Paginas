@@ -273,8 +273,7 @@ void imprimir_estado_sistema()
         Pagina* inicio = atual;
         
         do {
-            printf("  Página %d: R=%d, M=%d, timestamp=%d, working_set=%s%s\n",
-                   atual->indice_pagina, atual->R, atual->M, atual->timestamp_ultima_ref);
+            printf("  Página %d: R=%d, M=%d, timestamp=%d\n", atual->indice_pagina, atual->R, atual->M, atual->timestamp_ultima_ref);
             atual = atual->prox;
         } while (atual != inicio && listaProcessos[processo_atual].total_operacoes);
 
