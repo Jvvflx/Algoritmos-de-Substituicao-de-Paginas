@@ -63,13 +63,8 @@ int limite_paginas = 0;
 int limite_uso_cpu = 0;
 int tempo_virtual_atual = 0;
 int processo_atual = 0;
-int operacoes_global = 0;
+int uso_cpu = 0;
 int sistema_ativo = 1;
-
-FILE *saida;
-
-pthread_mutex_t mutex_disco;
-pthread_mutex_t mutex_fila;
 
 // Variáveis de comparação
 int qtd_page_fault = 0;
@@ -82,71 +77,23 @@ void substituirPagina(Pagina *nova_pagina);
 void trocaPagina(Pagina *antiga, Pagina *nova);
 void agendaEscrita(Pagina *page);
 int esta_no_working_set(Pagina *page);
-void adicionar_pagina_Relogio(Operacao dados);
-void adicionar_pagina_Fila(Pagina *page);
+void adicionar_pagina(Operacao dados);
 void imprimir_estado_sistema();
 void simular_referencias(int processo);
 Pagina* criar_pagina(Operacao dados);
 void leituraArquivo();
 void mascararIndicesVirtuais();
 
-void* escritaDisco(void *args){
-
-    while(sistema_ativo){
-        if(tempo_virtual_atual % limite_uso_cpu == 0 && tempo_virtual_atual > 0){
-            travamentoDuasEtapas();
-
-            if(filaAgendamento.qtd_paginas > 0){
-
-                for(int i = filaAgendamento.pagina_atual; i < filaAgendamento.qtd_paginas; filaAgendamento.pagina_atual++){
-                    int indice_pagina = filaAgendamento.lista[i].indice_pagina;
-                    int indice_memoria = indice_pagina - 100;
-
-                    disco[indice_memoria].mensagem[0] = cache[indice_memoria].mensagem[0];
-                    disco[indice_memoria].mensagem[1] = cache[indice_memoria].mensagem[1];
-                    
-                    filaAgendamento.lista[i].M = 0;
-                    filaAgendamento.qtd_paginas--;
-                }
-
-            }
-
-            destravamentoDuasEtapas();
-            printf("Escrita em disco concluída.\n");
-        }
+// Thread para simular o tempo virtual de forma controlada
+void* timer_thread(void* args) {
+    while(sistema_ativo) {
+        tempo_virtual_atual++;
+        sleep(1);
         
-        usleep(100000);
+        // Tempo virtual só incrementa com atividade do sistema
+        // Esta thread apenas simula a passagem de tempo
     }
-
-}
-
-void travamentoDuasEtapas(){
-
-    // Verifica se ambos estão livres para poder realizar a trava em ambos
-    if(mutex_fila.__align){
-        pthread_mutex_trylock(&mutex_fila);
-        if(mutex_disco.__align){
-            pthread_mutex_trylock(&mutex_disco);
-            return;
-        }
-        else{
-            pthread_mutex_unlock(&mutex_fila);
-        }
-    }
-    
-    // Se chegou aqui, não conseguiu travar ambos
-    // Espera um pouco e tenta novamente
-    usleep(1000);
-    travamentoDuasEtapas();
-
-}
-
-void destravamentoDuasEtapas(){
-
-    // Destrava ambos
-    pthread_mutex_unlock(&mutex_disco);
-    pthread_mutex_unlock(&mutex_fila);
-
+    return NULL;
 }
 
 // Cria uma nova página
@@ -167,16 +114,7 @@ Pagina* criar_pagina(Operacao dados) {
 }
 
 // Adiciona uma página ao sistema (estrutura circular)
-void adicionar_pagina_Relogio(Operacao dados) {
-    
-    if(listaPaginas.qtd_paginas >= limite_paginas) {
-        printf("Limite de páginas atingido, substituindo...\n");
-        Pagina* nova = criar_pagina(dados);
-        if(nova) {
-            substituirPagina(nova);
-        }
-        return;
-    }
+void adicionar_pagina(Operacao dados) {
     
     Pagina* nova = criar_pagina(dados);
     if (!nova) {
@@ -199,17 +137,6 @@ void adicionar_pagina_Relogio(Operacao dados) {
     listaPaginas.qtd_paginas++;
     printf("Página %d adicionada ao sistema. Total: %d páginas no relógio\n", 
            dados.indice, listaPaginas.qtd_paginas);
-    
-}
-
-// Adiciona uma página ao sistema (estrutura circular)
-void adicionar_pagina_Fila(Pagina *page) {
-    
-    
-    filaAgendamento.lista[filaAgendamento.qtd_paginas] = *page;
-    filaAgendamento.qtd_paginas++;
-    printf("Página %d adicionada ao sistema. Total: %d páginas na fila\n", 
-           page->indice_pagina, filaAgendamento.qtd_paginas);
     
 }
 
@@ -351,47 +278,34 @@ void referenciar_pagina(Operacao dados) {
     Pagina* inicio = atual;
     
     do {
-        if (atual->indice_pagina == dados.indice) {
-            if(dados.tipo == 'R') {
-                printf("Referenciando página %d\n", dados.indice);
-                atual->R = 1;
-                atual->timestamp_ultima_ref = tempo_virtual_atual;
-                return;
-            }
-            else if(dados.tipo == 'M') {
-                printf("Modificando página %d\n", dados.indice);
-                atual->R = 1;
-                atual->M = 1;
-                atual->timestamp_ultima_ref = tempo_virtual_atual;
-                
-                int indice_memoria = atual->indice_pagina - 100;
-                if(indice_memoria >= 0 && indice_memoria < TAMANHO_MEMORIA_CACHE) {
-                    strncpy(cache[indice_memoria].mensagem, dados.mensagem, 2);
-                    cache[indice_memoria].mensagem[2] = '\0';
-                }
-                
-                agendaEscrita(atual);
-                return;
-            }
+        if (atual->indice_pagina == dados.indice && dados.tipo == 'R') {
+            printf("Referenciando página %d\n", dados.indice);
+            atual->R = 1;
+            atual->timestamp_ultima_ref = tempo_virtual_atual;
+            return;
+        }
+
+        if (atual->indice_pagina == dados.indice && dados.tipo == 'M') {
+            printf("Modificando página %d\n", dados.indice);
+            atual->R = 1;
+            atual->M = 1;
+            // Busca para alteração da mensagem
+            atual->timestamp_ultima_ref = tempo_virtual_atual;
+            agendaEscrita(atual);
+            return;
         }
         atual = atual->prox;
     } while (atual != inicio);
 
     qtd_page_fault++;
-    listaProcessos[processo_atual].qtd_page_fault++;
     
     // Page fault - página não encontrada
     printf("Page fault! Página %d não está na memória\n", dados.indice);
-    
-    // Verifica se há espaço antes de adicionar
-    if(listaPaginas.qtd_paginas < limite_paginas) {
-        adicionar_pagina_Relogio(dados);
-    } else {
-        Pagina* nova = criar_pagina(dados);
-        if (nova) {
-            substituirPagina(nova);
-        }
+    Pagina* nova = criar_pagina(dados); // Atualizar função para procurar paǵina do disco e criar página na tabela de paginação
+    if (nova) {
+        substituirPagina(nova);
     }
+    
 }
 
 // Imprime estado atual do sistema
@@ -414,70 +328,35 @@ void imprimir_estado_sistema() {
                    (atual == listaPaginas.ponteiro_relogio) ? " [PONTEIRO]" : "");
             atual = atual->prox;
         } while (atual != inicio && listaProcessos[processo_atual].total_operacoes);
-
-        int i = filaAgendamento.pagina_atual;
-        printf(" Fila de agendamento de escrita:\nTempo virtual atual=%d\nTamanho da fila=%d\n", filaAgendamento.tempo_virtual, filaAgendamento.qtd_paginas);
-
-        while(i < filaAgendamento.qtd_paginas){
-            atual = &filaAgendamento.lista[i];
-            printf("Página %d: R=%d, M=%d, timestamp=%d\n",
-                atual->indice_pagina, atual->R, atual->M, atual->timestamp_ultima_ref);
-            i++;
-        }
     }
     
     printf("========================\n\n");
     
 }
 
-// Simulação de referências para cada processo
+// Simulação de referências para teste
 void simular_referencias(int processo) {
     printf("Iniciando simulação de referências...\n");
     
-    // CORREÇÃO: Carrega páginas iniciais somente se há dados válidos
-    for (int i = 0; i < limite_paginas && i < total_paginas && cache[i].indice != -1; i++) {
-        adicionar_pagina_Relogio(cache[i]);
+    // Adiciona algumas páginas iniciais
+    for (int i = 0; i < limite_paginas && cache[i].indice != -1; i++) {
+        adicionar_pagina(cache[i]);
     }
     
     imprimir_estado_sistema();
-
-    Operacao atual;
     
-    // Simula alternãncia entre processos
-    // Só encerra no momento que todos processos finalizaram todas suas operações
-    while(operacoes_global > 0){
-
-        printf("\n==== Processo Atual executando:%d ====\n", processo);
-        printf("==== Operações do processo restantes:%d ====\n", listaProcessos[processo].operacoes_rest);
-        printf("==== Operações Globais restantes:%d ====\n", operacoes_global);
-
-        if(listaProcessos[processo].operacoes_rest == 0){
-            processo = (processo + 1) % max_processos;  // só troca de processo
-            continue;
-        }
-
-        int indice_atual = (listaProcessos[processo].ultimo_indice == -1) ? 0 : listaProcessos[processo].ultimo_indice;
-        int rest = listaProcessos[processo].operacoes_rest;
-        int uso_atual = (rest > limite_uso_cpu) ? limite_uso_cpu : rest;
-        
-        for (int i = 0; i < uso_atual; i++) {
-            atual = listaProcessos[processo].sequencia_operacoes[indice_atual];
-
-            printf("\n--- Realiza operação %d: página %d ---\n", i+1, atual.indice);
-            tempo_virtual_atual++;
-            referenciar_pagina(atual);
-            imprimir_estado_sistema();
-            indice_atual++;
-        }
-        listaProcessos[processo].ultimo_indice = indice_atual;
-        listaProcessos[processo].operacoes_rest -= uso_atual;
-        operacoes_global -= uso_atual;
-
-        processo = (processo + 1) % max_processos;
-
-        processo_atual = processo;
+    // Simula algumas referências
+    Operacao atual = listaProcessos[processo].sequencia_operacoes[0];
+    int uso_atual = (listaProcessos[processo].total_operacoes % limite_uso_cpu);
+    
+    for (int i = 0; i < uso_atual; i++) {
+        printf("\n--- Realiza operação %d: página %d ---\n", i+1, atual.indice);
+        referenciar_pagina(atual);
+        imprimir_estado_sistema();
+        uso_cpu++;
+        atual = atual = listaProcessos[processo].sequencia_operacoes[i+1];
     }
-    
+    listaProcessos[processo].ultima_operacao = &atual;
 }
 
 // Inicialização do sistema
@@ -546,6 +425,10 @@ void leituraArquivo(){
 
             listaProcessos[i].sequencia_operacoes[k].tipo = tipo_operacao[0];
             
+            if(k+1 == listaProcessos[i].total_operacoes){
+                fprintf(saida, "\n");
+            }
+            
         }
 
         fscanf(entrada, "\n");
@@ -586,25 +469,20 @@ void escritaArquivo(){
 
 int main() {
     printf("=== Implementação WSClock ===\n");
-
-    pthread_mutex_init(&mutex_disco, NULL);
-    pthread_mutex_init(&mutex_fila, NULL);
     
     // Exemplo de uso
     inicializar_wsclock();
     
     // Cria thread de timer (opcional, para demonstração)
-    pthread_t escrita_em_disco;
-    pthread_create(&escrita_em_disco, NULL, escritaDisco, NULL);
+    pthread_t timer_tid;
+    pthread_create(&timer_tid, NULL, timer_thread, NULL);
     
     // Executa simulação
     simular_referencias(0);
     
     // Finaliza sistema
     sistema_ativo = 0;
-    pthread_join(escrita_em_disco, NULL);
-
-    escritaArquivo();
+    pthread_join(timer_tid, NULL);
     
     printf("\nSistema finalizado\n");
 
