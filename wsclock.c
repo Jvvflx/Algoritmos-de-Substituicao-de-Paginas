@@ -8,7 +8,7 @@
 
 #define TAMANHO_MEMORIA_CACHE 64
 #define TAMANHO_MEMORIA_DISCO 100000000
-#define JANELA_WORKING_SET 3  // Tamanho da janela do working set
+#define JANELA_WORKING_SET 15  // Tamanho da janela do working set
 
 typedef struct pagina {
     int timestamp_ultima_ref;   // Timestamp da última referência (essencial para WSClock)
@@ -42,6 +42,8 @@ typedef struct operacao{
 }Operacao;
 
 typedef struct processo{
+    int qtd_pag_em_cache;
+    int maior_qtd_pag_em_cache;
     int indice_processo;
     int qtd_paginas;
     int operacoes_rest;
@@ -69,6 +71,8 @@ CacheUn cache_estruturada[TAMANHO_MEMORIA_CACHE];
 int cache_ocupada = 0;
 int cache_lru_counter = 0;
 
+char* saida_nome;
+
 // Variáveis globais
 Relogio listaPaginas;
 Processo* listaProcessos;
@@ -89,8 +93,11 @@ pthread_mutex_t mutex_disco;
 pthread_mutex_t mutex_fila;
 
 // Variáveis de comparação
+int acessos_cache_total = 0;
 int ausencia_leve = 0;
 int ausencia_completa = 0;
+int cache_hit = 0;
+int escrita_disco = 0;
 
 // Protótipos das funções
 void* escritaDisco(void* args);
@@ -340,6 +347,8 @@ void trocaPagina(Pagina *antiga, Pagina *nova) {
 // Função para agendar uma página suja para escrita no disco
 void agendaEscrita(Pagina *page) {
 
+
+    escrita_disco++;
     printf("Agendando escrita da página %d para disco\n", page->indice_pagina);
 
     // // Adiciona página na fila de escrita
@@ -612,6 +621,8 @@ void leituraArquivo(){
         
         listaProcessos[i].operacoes_rest = listaProcessos[i].total_operacoes;
         listaProcessos[i].ultimo_indice = -1;
+        listaProcessos[i].maior_qtd_pag_em_cache = 0;
+        listaProcessos[i].qtd_pag_em_cache = 0;
         operacoes_global += listaProcessos[i].total_operacoes;
 
         total_paginas += listaProcessos[i].qtd_paginas;
@@ -669,12 +680,15 @@ void inicializar_cache() {
 
 // Função para buscar uma página na cache
 int buscar_na_cache(int indice_virtual) {
+
+    acessos_cache_total++;
     for(int i = 0; i < TAMANHO_MEMORIA_CACHE; i++) {
         if(cache_estruturada[i].valida && 
            cache_estruturada[i].indice_virtual == indice_virtual) {
             // Atualiza timestamp LRU
             cache_estruturada[i].timestamp_uso = cache_lru_counter++;
             printf("Cache HIT! Página %d encontrada na cache slot %d\n", indice_virtual, i);
+            cache_hit++;
             return i; // Retorna o índice da cache onde está a página
         }
     }
@@ -705,6 +719,11 @@ int encontrar_slot_cache() {
     
     printf("Cache cheia! Aplicando LRU, removendo página %d do slot %d\n", 
            cache_estruturada[lru_slot].indice_virtual, lru_slot);
+
+    int dono_antigo = cache_estruturada[lru_slot].processo_dono;
+    if(dono_antigo != -1 && cache_estruturada[lru_slot].valida){
+        listaProcessos[dono_antigo].qtd_pag_em_cache--;
+    }
     
     return lru_slot;
 }
@@ -749,6 +768,23 @@ int carregar_pagina_para_cache(int indice_virtual) {
     // Encontra um slot na cache
     int cache_slot = encontrar_slot_cache();
     
+    
+    // Antes de sobrescrever, desconta do dono anterior (se existir)
+    int temp = cache_estruturada[cache_slot].processo_dono;
+    if(temp != -1 && cache_estruturada[cache_slot].valida){
+        listaProcessos[temp].qtd_pag_em_cache--;
+    }
+
+    // Atribui novo dono
+    cache_estruturada[cache_slot].processo_dono = processo_atual;
+    listaProcessos[processo_atual].qtd_pag_em_cache++;
+
+    // Atualiza pico
+    if(listaProcessos[processo_atual].qtd_pag_em_cache > listaProcessos[processo_atual].maior_qtd_pag_em_cache){
+        listaProcessos[processo_atual].maior_qtd_pag_em_cache = listaProcessos[processo_atual].qtd_pag_em_cache;
+    }
+
+
     // Carrega a página do disco para a cache
     cache_estruturada[cache_slot].indice_virtual = indice_virtual;
     cache_estruturada[cache_slot].indice_real_disco = disco[disco_index].indice;
@@ -776,19 +812,29 @@ int carregar_pagina_para_cache(int indice_virtual) {
 
 void escritaArquivo(){
 
-    FILE *saida = fopen("Saida_wsclock.txt", "w");
+    saida_nome = saida_nome[0] == ' ' ? "Saida_wsclock.txt" : saida_nome;
+    FILE *saida = fopen(saida_nome, "w");
+
+    double temp = (double) (ausencia_completa+ausencia_leve)/operacoes_totais;
 
     fprintf(saida, "PROCS=%d -- PÁG_T=%d -- OPER_T=%d -- AL=%d -- AC=%d\n", max_processos, total_paginas, operacoes_totais, ausencia_leve, ausencia_completa);
+    fprintf(saida, "PgFlt_Rate=%.2f%% \n", 100.0 * temp);
 
     for(int i = 0; i < max_processos; i++){
-        fprintf(saida, "PROC=%d -- PÁG=%d -- AL=%d -- AC=%d\n", listaProcessos[i].indice_processo, listaProcessos[i].qtd_paginas, listaProcessos[i].ausencia_leve, listaProcessos[i].ausencia_completa);
+        double temp = (double) listaProcessos[i].maior_qtd_pag_em_cache/ 64.0;
+        fprintf(saida, "PROC=%d -- PÁG=%d -- AL=%d -- AC=%d\n   ", listaProcessos[i].indice_processo, listaProcessos[i].qtd_paginas, listaProcessos[i].ausencia_leve, listaProcessos[i].ausencia_completa);
+        fprintf(saida, "Pico de Páginas em Cache=%d -- Prct_PPC=%.2f%%\n", listaProcessos[i].maior_qtd_pag_em_cache, 100.0 * temp);
     }
 
     fclose(saida);
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     printf("=== Implementação WSClock ===\n");
+
+    saida_nome = (char*) malloc(25 * sizeof(char));
+
+    saida_nome = argv[1];
 
     pthread_mutex_init(&mutex_disco, NULL);
     pthread_mutex_init(&mutex_fila, NULL);

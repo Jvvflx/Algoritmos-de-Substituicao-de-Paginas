@@ -1,0 +1,42 @@
+PROCS=20 -- PÁG_T=596 -- OPER_T=12176 -- AL=352 -- AC=2196
+PgFlt_Rate=20.93% 
+PROC=0 -- PÁG=40 -- AL=9 -- AC=119
+   Pico de Páginas em Cache=5 -- Prct_PPC=7.81%
+PROC=1 -- PÁG=37 -- AL=6 -- AC=133
+   Pico de Páginas em Cache=7 -- Prct_PPC=10.94%
+PROC=2 -- PÁG=28 -- AL=0 -- AC=20
+   Pico de Páginas em Cache=8 -- Prct_PPC=12.50%
+PROC=3 -- PÁG=38 -- AL=38 -- AC=142
+   Pico de Páginas em Cache=3 -- Prct_PPC=4.69%
+PROC=4 -- PÁG=21 -- AL=0 -- AC=20
+   Pico de Páginas em Cache=5 -- Prct_PPC=7.81%
+PROC=5 -- PÁG=29 -- AL=11 -- AC=128
+   Pico de Páginas em Cache=6 -- Prct_PPC=9.38%
+PROC=6 -- PÁG=27 -- AL=63 -- AC=179
+   Pico de Páginas em Cache=6 -- Prct_PPC=9.38%
+PROC=7 -- PÁG=33 -- AL=18 -- AC=167
+   Pico de Páginas em Cache=6 -- Prct_PPC=9.38%
+PROC=8 -- PÁG=24 -- AL=0 -- AC=10
+   Pico de Páginas em Cache=4 -- Prct_PPC=6.25%
+PROC=9 -- PÁG=30 -- AL=0 -- AC=96
+   Pico de Páginas em Cache=7 -- Prct_PPC=10.94%
+PROC=10 -- PÁG=38 -- AL=0 -- AC=49
+   Pico de Páginas em Cache=5 -- Prct_PPC=7.81%
+PROC=11 -- PÁG=31 -- AL=9 -- AC=122
+   Pico de Páginas em Cache=3 -- Prct_PPC=4.69%
+PROC=12 -- PÁG=20 -- AL=58 -- AC=195
+   Pico de Páginas em Cache=6 -- Prct_PPC=9.38%
+PROC=13 -- PÁG=40 -- AL=0 -- AC=64
+   Pico de Páginas em Cache=6 -- Prct_PPC=9.38%
+PROC=14 -- PÁG=22 -- AL=57 -- AC=163
+   Pico de Páginas em Cache=5 -- Prct_PPC=7.81%
+PROC=15 -- PÁG=34 -- AL=9 -- AC=142
+   Pico de Páginas em Cache=5 -- Prct_PPC=7.81%
+PROC=16 -- PÁG=23 -- AL=37 -- AC=172
+   Pico de Páginas em Cache=5 -- Prct_PPC=7.81%
+PROC=17 -- PÁG=35 -- AL=29 -- AC=167
+   Pico de Páginas em Cache=8 -- Prct_PPC=12.50%
+PROC=18 -- PÁG=25 -- AL=0 -- AC=12
+   Pico de Páginas em Cache=3 -- Prct_PPC=4.69%
+PROC=19 -- PÁG=21 -- AL=8 -- AC=96
+   Pico de Páginas em Cache=4 -- Prct_PPC=6.25%

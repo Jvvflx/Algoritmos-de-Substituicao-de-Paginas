@@ -1,0 +1,22 @@
+PROCS=10 -- PÁG_T=1249 -- OPER_T=7314 -- AL=276 -- AC=1361
+PgFlt_Rate=22.38% 
+PROC=0 -- PÁG=140 -- AL=26 -- AC=139
+   Pico de Páginas em Cache=8 -- Prct_PPC=12.50%
+PROC=1 -- PÁG=109 -- AL=20 -- AC=100
+   Pico de Páginas em Cache=10 -- Prct_PPC=15.62%
+PROC=2 -- PÁG=130 -- AL=49 -- AC=205
+   Pico de Páginas em Cache=6 -- Prct_PPC=9.38%
+PROC=3 -- PÁG=129 -- AL=36 -- AC=196
+   Pico de Páginas em Cache=10 -- Prct_PPC=15.62%
+PROC=4 -- PÁG=129 -- AL=33 -- AC=168
+   Pico de Páginas em Cache=10 -- Prct_PPC=15.62%
+PROC=5 -- PÁG=129 -- AL=1 -- AC=15
+   Pico de Páginas em Cache=10 -- Prct_PPC=15.62%
+PROC=6 -- PÁG=123 -- AL=44 -- AC=181
+   Pico de Páginas em Cache=14 -- Prct_PPC=21.88%
+PROC=7 -- PÁG=121 -- AL=25 -- AC=117
+   Pico de Páginas em Cache=12 -- Prct_PPC=18.75%
+PROC=8 -- PÁG=110 -- AL=17 -- AC=95
+   Pico de Páginas em Cache=7 -- Prct_PPC=10.94%
+PROC=9 -- PÁG=129 -- AL=25 -- AC=145
+   Pico de Páginas em Cache=7 -- Prct_PPC=10.94%
