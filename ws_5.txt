@@ -1,0 +1,11 @@
+PROCS=10 -- PÁG_T=244 -- OPER_T=774 -- AL=162 -- AC=486
+PROC=0 -- PÁG=30 -- AL=1 -- AC=51
+PROC=1 -- PÁG=24 -- AL=2 -- AC=59
+PROC=2 -- PÁG=26 -- AL=4 -- AC=50
+PROC=3 -- PÁG=24 -- AL=3 -- AC=47
+PROC=4 -- PÁG=21 -- AL=7 -- AC=42
+PROC=5 -- PÁG=25 -- AL=62 -- AC=58
+PROC=6 -- PÁG=25 -- AL=0 -- AC=17
+PROC=7 -- PÁG=20 -- AL=0 -- AC=44
+PROC=8 -- PÁG=28 -- AL=42 -- AC=72
+PROC=9 -- PÁG=21 -- AL=41 -- AC=46

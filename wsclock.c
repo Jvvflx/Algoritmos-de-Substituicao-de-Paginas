@@ -7,7 +7,7 @@
 #include <string.h>
 
 #define TAMANHO_MEMORIA_CACHE 64
-#define TAMANHO_MEMORIA_DISCO 4096
+#define TAMANHO_MEMORIA_DISCO 100000000
 #define JANELA_WORKING_SET 3  // Tamanho da janela do working set
 
 typedef struct pagina {
@@ -74,7 +74,6 @@ Relogio listaPaginas;
 Processo* listaProcessos;
 Fila filaAgendamento;
 Operacao* disco;
-Operacao* cache;
 int total_paginas = 0;
 int max_processos = 0;
 int limite_paginas = 0;
@@ -111,6 +110,9 @@ void referenciar_pagina(Operacao dados);
 void imprimir_estado_cache();
 int buscar_na_cache(int indice_virtual);
 int carregar_pagina_para_cache(int indice_virtual);
+void inicializar_cache();
+int encontrar_slot_cache();
+void escritaArquivo();
 
 void* escritaDisco(void *args){
 
@@ -124,8 +126,8 @@ void* escritaDisco(void *args){
                     int indice_pagina = filaAgendamento.lista[i].indice_pagina;
                     int indice_memoria = indice_pagina - 100;
 
-                    disco[indice_memoria].mensagem[0] = cache[indice_memoria].mensagem[0];
-                    disco[indice_memoria].mensagem[1] = cache[indice_memoria].mensagem[1];
+                    disco[indice_memoria].mensagem[0] = cache_estruturada[indice_memoria].mensagem[0];
+                    disco[indice_memoria].mensagem[1] = cache_estruturada[indice_memoria].mensagem[1];
                     
                     filaAgendamento.lista[i].M = 0;
                     filaAgendamento.qtd_paginas--;
@@ -340,18 +342,18 @@ void agendaEscrita(Pagina *page) {
 
     printf("Agendando escrita da página %d para disco\n", page->indice_pagina);
 
-    // Adiciona página na fila de escrita
-    for(int i = 0; i < filaAgendamento.qtd_paginas; i++){
-        if(page->indice_pagina == filaAgendamento.lista[i].indice_pagina){
-            printf("Página %d já está na fila para escrita em disco\n", page->indice_pagina);
-            return;
-        }
-    }
+    // // Adiciona página na fila de escrita
+    // for(int i = 0; i < filaAgendamento.qtd_paginas; i++){
+    //     if(page->indice_pagina == filaAgendamento.lista[i].indice_pagina){
+    //         printf("Página %d já está na fila para escrita em disco\n", page->indice_pagina);
+    //         return;
+    //     }
+    // }
 
-    pthread_mutex_lock(&mutex_fila);
-    adicionar_pagina_Fila(page);
-    filaAgendamento.tempo_virtual = tempo_virtual_atual;
-    pthread_mutex_unlock(&mutex_fila);
+    // pthread_mutex_lock(&mutex_fila);
+    // adicionar_pagina_Fila(page);
+    // filaAgendamento.tempo_virtual = tempo_virtual_atual;
+    // pthread_mutex_unlock(&mutex_fila);
 
     printf("Página %d adicionada na fila para escrita no disco\n", page->indice_pagina);
     
@@ -521,11 +523,6 @@ void imprimir_estado_sistema() {
 void simular_referencias(int processo) {
     printf("Iniciando simulação de referências...\n");
     
-    // CORREÇÃO: Carrega páginas iniciais somente se há dados válidos
-    for (int i = 0; i < limite_paginas && i < total_paginas && cache[i].indice != -1; i++) {
-        adicionar_pagina_Relogio(cache[i]);
-    }
-    
     imprimir_estado_sistema();
 
     Operacao atual;
@@ -578,19 +575,11 @@ void inicializar_wsclock() {
     printf("Janela working set: %d\n", JANELA_WORKING_SET);
     printf("Limite de páginas: %d\n", limite_paginas);
 
+    inicializar_cache();
     imprimir_estado_cache();
 
     // Sistema de leitura de datasets sintéticos
     leituraArquivo();
-    // Limpa a cache antes de carregar os novos dados
-    for(int i = 0; i < TAMANHO_MEMORIA_CACHE; i++){
-        cache[i].indice = -1;
-        cache[i].prot = -1;
-        cache[i].tipo = '\0';
-        cache[i].mensagem[0] = '\0';
-        cache[i].mensagem[1] = '\0';
-        cache[i].mensagem[2] = '\0';
-    }
 
     for(int disco_index = 0; disco_index < total_paginas+max_processos; disco_index++){
         printf("Disco[%d]:indice_real_disco->%d, prot->%d, mensagem->%s\n", 
@@ -600,14 +589,12 @@ void inicializar_wsclock() {
 
 }
 
-
 void leituraArquivo(){
 
     FILE *entrada = fopen("Exemplo.txt", "r");
 
     // Inicializa o disco, memória e fila de agendamento
     disco = (Operacao*) malloc(TAMANHO_MEMORIA_DISCO * sizeof(Operacao));
-    cache = (Operacao*) malloc(TAMANHO_MEMORIA_CACHE * sizeof(Operacao));
     filaAgendamento.lista = (Pagina*) malloc((TAMANHO_MEMORIA_CACHE/8) * sizeof(Pagina));
     filaAgendamento.qtd_paginas = 0;
     filaAgendamento.pagina_atual = 0;
@@ -789,7 +776,7 @@ int carregar_pagina_para_cache(int indice_virtual) {
 
 void escritaArquivo(){
 
-    FILE *saida = fopen("Saida.txt", "w");
+    FILE *saida = fopen("Saida_wsclock.txt", "w");
 
     fprintf(saida, "PROCS=%d -- PÁG_T=%d -- OPER_T=%d -- AL=%d -- AC=%d\n", max_processos, total_paginas, operacoes_totais, ausencia_leve, ausencia_completa);
 
@@ -811,14 +798,14 @@ int main() {
     
     // Cria thread de timer (opcional, para demonstração)
     pthread_t escrita_em_disco;
-    pthread_create(&escrita_em_disco, NULL, escritaDisco, NULL);
+    // pthread_create(&escrita_em_disco, NULL, escritaDisco, NULL);
     
     // Executa simulação
     simular_referencias(0);
     
     // Finaliza sistema
     sistema_ativo = 0;
-    pthread_join(escrita_em_disco, NULL);
+    // pthread_join(escrita_em_disco, NULL);
 
     escritaArquivo();
     
